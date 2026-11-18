@@ -6,11 +6,13 @@ use crate::Frame;
 use ab_glyph::{point, Font, FontVec, GlyphId, PxScale, PxScaleFont, Rect, ScaleFont};
 use glium::glutin::surface::WindowSurface;
 use glium::index::{NoIndices, PrimitiveType};
-use glium::texture::UncompressedFloatFormat;
+use glium::texture::{Texture2dArray, UncompressedFloatFormat};
 use glium::{implement_vertex, uniform, Blend, Display, DrawParameters};
 use log::warn;
 use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
+use glium::uniforms::{EmptyUniforms, Sampler, UniformValue, Uniforms, UniformsStorage};
+use crate::colour::Colour;
 
 const SCALE: f32 = 1024.0;
 
@@ -21,7 +23,7 @@ pub struct FontSystem {
 }
 
 struct FontRenderer {
-    glyph_shader: Shader<GlyphVertex>,
+    glyph_shader: Shader<GlyphVertex, GlyphUniform<'static>>,
     font: PxScaleFont<FontVec>,
     glyph_ids_and_advances: HashMap<u32, (GlyphId, f32), BuildNoHashHasher<u32>>,
 }
@@ -40,40 +42,9 @@ pub enum VerticalAlignment {
     Bottom(f32),
 }
 
-#[derive(Copy, Clone)]
-pub struct ColourU8(pub u8, pub u8, pub u8, pub u8);
-
-pub trait Colour: Copy {
-    fn r(&self) -> f32;
-
-    fn g(&self) -> f32;
-
-    fn b(&self) -> f32;
-
-    fn a(&self) -> f32;
-}
-
 enum BakedGlyph {
     Empty,
     Glyph(u32, Rect),
-}
-
-impl Colour for ColourU8 {
-    fn r(&self) -> f32 {
-        self.0 as f32 / 255.0
-    }
-
-    fn g(&self) -> f32 {
-        self.1 as f32 / 255.0
-    }
-
-    fn b(&self) -> f32 {
-        self.2 as f32 / 255.0
-    }
-
-    fn a(&self) -> f32 {
-        self.3 as f32 / 255.0
-    }
 }
 
 impl FontSystem {
@@ -278,12 +249,7 @@ impl<'font_system, 'frame, 'display, C: Colour> FontRenderBatch<'font_system, 'f
     pub fn end_batch(self, buffer: &VertexBuffer<GlyphVertex>) {
         let mut draw_params = DrawParameters::default();
         draw_params.blend = Blend::alpha_blending();
-        let uniforms = uniform! {
-                    proj: self.proj,
-                    view: self.view,
-                    color: [self.colour.r(), self.colour.g(), self.colour.b(), self.colour.a()],
-                    tex: self.atlas.sampler(),
-                };
+        let uniforms = GlyphUniform::new(self.proj, self.view, self.colour, self.atlas.sampler());
         self.frame.draw(
             buffer,
             NoIndices(PrimitiveType::TrianglesList),
@@ -291,5 +257,24 @@ impl<'font_system, 'frame, 'display, C: Colour> FontRenderBatch<'font_system, 'f
             &uniforms,
             &draw_params,
         );
+    }
+}
+
+pub struct GlyphUniform<'sampler>(UniformsStorage<'static, Sampler<'sampler, Texture2dArray>, UniformsStorage<'static, [f32; 4], UniformsStorage<'static, [[f32; 4]; 4], UniformsStorage<'static, [[f32; 4]; 4], EmptyUniforms>>>>);
+
+impl Uniforms for GlyphUniform<'_> {
+    fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, f: F) {
+        self.0.visit_values(f)
+    }
+}
+
+impl <'sampler> GlyphUniform<'sampler> {
+    pub fn new(proj: [[f32; 4]; 4], view: [[f32; 4]; 4], colour: impl Colour, sampler: Sampler<'sampler, Texture2dArray>) -> Self {
+        Self(uniform! {
+            proj: proj,
+            view: view,
+            colour: [colour.r(), colour.g(), colour.b(), colour.a()],
+            sampler: sampler,
+        })
     }
 }

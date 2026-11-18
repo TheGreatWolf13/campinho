@@ -1,11 +1,12 @@
 mod arena;
+mod atlas;
+pub mod colour;
 pub mod font;
 pub mod gl;
 mod util;
-mod atlas;
 
 use crate::arena::Arena;
-use crate::font::{Colour, FontSystem};
+use crate::font::{FontSystem};
 use crate::gl::frame::{Frame, Shader};
 use cgmath::{ortho, EuclideanSpace, Matrix4, Point2, Point3, Vector3};
 use glium::backend::glutin::SimpleWindowBuilder;
@@ -15,17 +16,18 @@ use glium::winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta,
 use glium::winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use glium::winit::keyboard::{KeyCode, PhysicalKey};
 use glium::winit::window::{Icon, Window, WindowAttributes, WindowId};
-use glium::{implement_vertex, uniform, Display, DrawParameters};
+use glium::{uniform, Display, DrawParameters};
 use log::{debug, info};
 use std::time::{Duration, Instant};
 use glium::index::NoIndices;
 use glium::index::PrimitiveType::TrianglesList;
-use crate::gl::vertex_buffer::VertexBuffer;
+use glium::uniforms::{EmptyUniforms, Uniforms, UniformsStorage};
+use crate::gl::vertex_buffer::{VertexBuffer, VertexPos, VertexPosColour};
 
 struct Campinho {
     window: Window,
     arena: Arena,
-    default_shader: Shader<VertexPosColour>,
+    default_shader: Shader<VertexPosColour, [[f32; 4];4], UniformsStorage<'static, [[f32; 4];4], EmptyUniforms>>,
     colour_wheel_shader: Shader<VertexPos>,
     display: Display<WindowSurface>,
     fps: usize,
@@ -252,37 +254,6 @@ impl Campinho {
         self.fps += 1;
     }
 }
-
-#[derive(Copy, Clone)]
-pub struct VertexPosColour {
-    pos: [f32; 3],
-    color: [f32; 4],
-}
-
-impl VertexPosColour {
-    pub fn new(x: f32, y: f32, color: impl Colour) -> Self {
-        Self {
-            pos: [x, y, 0.0],
-            color: [color.r(), color.g(), color.b(), color.a()],
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct VertexPos {
-    pos: [f32; 3],
-}
-
-impl VertexPos {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self {
-            pos: [x, y, 0.0],
-        }
-    }
-}
-
-implement_vertex!(VertexPos, pos);
-implement_vertex!(VertexPosColour, pos, color);
 
 fn main() {
     unsafe {

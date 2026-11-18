@@ -1,8 +1,40 @@
 ﻿use glium::buffer::WriteMapping;
 use glium::glutin::surface::WindowSurface;
 use glium::vertex::{VertexBuffer as VB, VertexBufferSlice};
-use glium::{Display, Vertex};
+use glium::{implement_vertex, Display, Vertex};
 use log::info;
+use crate::colour::Colour;
+
+#[derive(Copy, Clone)]
+pub struct VertexPosColour {
+    pub pos: [f32; 3],
+    pub color: [f32; 4],
+}
+
+impl VertexPosColour {
+    pub fn new(x: f32, y: f32, color: impl Colour) -> Self {
+        Self {
+            pos: [x, y, 0.0],
+            color: [color.r(), color.g(), color.b(), color.a()],
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct VertexPos {
+    pos: [f32; 3],
+}
+
+impl VertexPos {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self {
+            pos: [x, y, 0.0],
+        }
+    }
+}
+
+implement_vertex!(VertexPos, pos);
+implement_vertex!(VertexPosColour, pos, color);
 
 pub struct VertexBuffer<T: Vertex> {
     name: &'static str,

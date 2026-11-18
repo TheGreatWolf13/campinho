@@ -1,4 +1,4 @@
-﻿use crate::font::{ColourU8, FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
+﻿use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
 use crate::gl::frame::Shader;
 use crate::gl::vertex_buffer::VertexBuffer;
 use crate::{if_else, Frame, VertexPosColour};
@@ -12,6 +12,7 @@ use glium::winit::event::ElementState;
 use glium::winit::keyboard::KeyCode;
 use glium::{uniform, Blend, Display, DrawParameters};
 use std::time::Duration;
+use crate::colour::ColourU8;
 
 pub(super) struct Arena {
     zoom_level: f32,
