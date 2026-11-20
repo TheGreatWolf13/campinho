@@ -1,9 +1,9 @@
-﻿use crate::gl::vertex_buffer::{VertexBuffer, VertexPosColour};
+﻿use crate::colour::Colour;
+use crate::gl::shader::Shader;
+use crate::gl::vertex_buffer::VertexBuffer;
 use glium::glutin::surface::WindowSurface;
-use glium::uniforms::{EmptyUniforms, UniformValue, Uniforms, UniformsStorage};
-use glium::{index, uniform, Display, DrawParameters, Program, Surface, Vertex};
-use std::marker::PhantomData;
-use crate::colour::Colour;
+use glium::uniforms::Uniforms;
+use glium::{index, Display, DrawParameters, Surface, Vertex};
 
 ///<h1>Frame</h1>
 pub struct Frame<'display> {
@@ -42,41 +42,5 @@ impl<'display> Frame<'display> {
 impl<'display> Drop for Frame<'display> {
     fn drop(&mut self) {
         self.frame.take().unwrap().finish().unwrap();
-    }
-}
-
-///<h1>Shader</h1>
-pub struct Shader<V: Vertex, U: Uniforms> {
-    program: Program,
-    _phantom: PhantomData<V>,
-    _phantom2: PhantomData<U>,
-}
-
-impl<V: Vertex, U: Uniforms> Shader<V, U> {
-    pub fn new(display: &Display<WindowSurface>, vs: &'static str, fs: &'static str) -> Self {
-        Self {
-            program: Program::from_source(display, vs, fs, None).unwrap(),
-            _phantom: PhantomData,
-            _phantom2: PhantomData,
-        }
-    }
-}
-
-pub type ShaderDefault = Shader<VertexPosColour, DefaultShaderUniform>;
-
-pub struct DefaultShaderUniform(UniformsStorage<'static, [[f32; 4]; 4], UniformsStorage<'static, [[f32; 4]; 4], EmptyUniforms>>);
-
-impl Uniforms for DefaultShaderUniform {
-    fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, f: F) {
-        self.0.visit_values(f)
-    }
-}
-
-impl DefaultShaderUniform {
-    pub fn new(proj: [[f32; 4]; 4], view: [[f32; 4]; 4]) -> Self {
-        Self(uniform! {
-            proj: proj,
-            view: view,
-        })
     }
 }

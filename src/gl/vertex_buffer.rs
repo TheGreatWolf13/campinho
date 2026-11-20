@@ -1,9 +1,9 @@
-﻿use glium::buffer::WriteMapping;
+﻿use crate::colour::Colour;
+use glium::buffer::WriteMapping;
 use glium::glutin::surface::WindowSurface;
 use glium::vertex::{VertexBuffer as VB, VertexBufferSlice};
 use glium::{implement_vertex, Display, Vertex};
 use log::info;
-use crate::colour::Colour;
 
 #[derive(Copy, Clone)]
 pub struct VertexPosColour {
@@ -22,7 +22,7 @@ impl VertexPosColour {
 
 #[derive(Copy, Clone)]
 pub struct VertexPos {
-    pos: [f32; 3],
+    pub pos: [f32; 3],
 }
 
 impl VertexPos {

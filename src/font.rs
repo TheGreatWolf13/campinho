@@ -1,18 +1,18 @@
 ﻿use crate::atlas::TextureAtlas;
+use crate::colour::Colour;
 use crate::font::BakedGlyph::{Empty, Glyph};
-use crate::gl::frame::Shader;
+use crate::gl::shader::Shader;
 use crate::gl::vertex_buffer::{VertexBuffer, WritableVertexBufferStack};
-use crate::Frame;
+use crate::{impl_uniforms, Frame};
 use ab_glyph::{point, Font, FontVec, GlyphId, PxScale, PxScaleFont, Rect, ScaleFont};
 use glium::glutin::surface::WindowSurface;
 use glium::index::{NoIndices, PrimitiveType};
 use glium::texture::{Texture2dArray, UncompressedFloatFormat};
+use glium::uniforms::{EmptyUniforms, Sampler, UniformsStorage};
 use glium::{implement_vertex, uniform, Blend, Display, DrawParameters};
 use log::warn;
 use nohash_hasher::BuildNoHashHasher;
 use std::collections::HashMap;
-use glium::uniforms::{EmptyUniforms, Sampler, UniformValue, Uniforms, UniformsStorage};
-use crate::colour::Colour;
 
 const SCALE: f32 = 1024.0;
 
@@ -58,7 +58,7 @@ impl FontSystem {
         }
     }
 
-    pub fn render_text(&mut self, frame: &mut Frame, buffer: &mut VertexBuffer<GlyphVertex>, text: &str, hor_align: HorizontalAlignment, ver_align: VerticalAlignment, scale: f32, colour: impl Colour, proj: [[f32; 4]; 4], view: [[f32; 4]; 4]) {
+    pub fn render_text(&mut self, frame: &mut Frame, buffer: &mut VertexBuffer<GlyphVertex>, text: &str, hor_align: HorizontalAlignment, ver_align: VerticalAlignment, scale: f32, colour: impl Colour, proj: impl Into<[[f32; 4]; 4]>, view: impl Into<[[f32; 4]; 4]>) {
         let display = frame.display();
         let mut batch = self.render_in_batch(frame, colour, proj, view);
         {
@@ -69,7 +69,7 @@ impl FontSystem {
         batch.end_batch(&buffer);
     }
 
-    pub fn render_in_batch<'font_system, 'frame, 'display, C: Colour>(&'font_system mut self, frame: &'frame mut Frame<'display>, colour: C, proj: [[f32; 4]; 4], view: [[f32; 4]; 4]) -> FontRenderBatch<'font_system, 'frame, 'display, C> {
+    pub fn render_in_batch<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>>(&'font_system mut self, frame: &'frame mut Frame<'display>, colour: C, proj: P, view: V) -> FontRenderBatch<'font_system, 'frame, 'display, C, P, V> {
         FontRenderBatch {
             renderer: &mut self.renderer,
             glyphs: &mut self.glyphs,
@@ -111,16 +111,15 @@ impl FontRenderer {
             #version 140
 
             in vec2 v_uv;
-            in vec4 v_color;
             flat in uint v_layer;
 
             uniform sampler2DArray tex;
-            uniform vec4 color;
+            uniform vec4 colour;
 
-            out vec4 frag_color;
+            out vec4 frag_colour;
 
             void main() {
-                frag_color = vec4(color.r, color.g, color.b, color.a * texture(tex, vec3(v_uv, v_layer)).r);
+                frag_colour = vec4(colour.r, colour.g, colour.b, colour.a * texture(tex, vec3(v_uv, v_layer)).r);
             }
         "#;
         Self {
@@ -231,17 +230,17 @@ impl GlyphVertex {
 
 implement_vertex!(GlyphVertex, pos, uv, layer);
 
-pub struct FontRenderBatch<'font_system, 'frame, 'display, C: Colour> {
+pub struct FontRenderBatch<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>> {
     renderer: &'font_system mut FontRenderer,
     glyphs: &'font_system mut Vec<Option<BakedGlyph>>,
     atlas: &'font_system mut TextureAtlas,
-    proj: [[f32; 4]; 4],
-    view: [[f32; 4]; 4],
+    proj: P,
+    view: V,
     colour: C,
     frame: &'frame mut Frame<'display>,
 }
 
-impl<'font_system, 'frame, 'display, C: Colour> FontRenderBatch<'font_system, 'frame, 'display, C> {
+impl<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>> FontRenderBatch<'font_system, 'frame, 'display, C, P, V> {
     pub fn render_text(&mut self, text: &str, hor_align: HorizontalAlignment, ver_align: VerticalAlignment, scale: f32, stack: &mut WritableVertexBufferStack<GlyphVertex>, display: &Display<WindowSurface>) {
         self.renderer.render_text(text, hor_align, ver_align, scale, stack, &mut self.glyphs, &mut self.atlas, display);
     }
@@ -262,19 +261,15 @@ impl<'font_system, 'frame, 'display, C: Colour> FontRenderBatch<'font_system, 'f
 
 pub struct GlyphUniform<'sampler>(UniformsStorage<'static, Sampler<'sampler, Texture2dArray>, UniformsStorage<'static, [f32; 4], UniformsStorage<'static, [[f32; 4]; 4], UniformsStorage<'static, [[f32; 4]; 4], EmptyUniforms>>>>);
 
-impl Uniforms for GlyphUniform<'_> {
-    fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, f: F) {
-        self.0.visit_values(f)
-    }
-}
-
-impl <'sampler> GlyphUniform<'sampler> {
-    pub fn new(proj: [[f32; 4]; 4], view: [[f32; 4]; 4], colour: impl Colour, sampler: Sampler<'sampler, Texture2dArray>) -> Self {
+impl<'sampler> GlyphUniform<'sampler> {
+    pub fn new(proj: impl Into<[[f32; 4]; 4]>, view: impl Into<[[f32; 4]; 4]>, colour: impl Colour, sampler: Sampler<'sampler, Texture2dArray>) -> Self {
         Self(uniform! {
-            proj: proj,
-            view: view,
+            proj: proj.into(),
+            view: view.into(),
             colour: [colour.r(), colour.g(), colour.b(), colour.a()],
-            sampler: sampler,
+            tex: sampler,
         })
     }
 }
+
+impl_uniforms!(GlyphUniform<'_>);

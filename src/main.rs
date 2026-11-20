@@ -6,9 +6,12 @@ pub mod gl;
 mod util;
 
 use crate::arena::Arena;
-use crate::font::{FontSystem};
-use crate::gl::frame::{Frame, Shader};
-use cgmath::{ortho, EuclideanSpace, Matrix4, Point2, Point3, Vector3};
+use crate::colour::ColourWheelManager;
+use crate::font::FontSystem;
+use crate::gl::frame::Frame;
+use crate::gl::shader::{Shader, UniformProjView};
+use crate::gl::vertex_buffer::VertexPosColour;
+use cgmath::{EuclideanSpace, Point2};
 use glium::backend::glutin::SimpleWindowBuilder;
 use glium::glutin::surface::WindowSurface;
 use glium::winit::application::ApplicationHandler;
@@ -16,19 +19,14 @@ use glium::winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta,
 use glium::winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use glium::winit::keyboard::{KeyCode, PhysicalKey};
 use glium::winit::window::{Icon, Window, WindowAttributes, WindowId};
-use glium::{uniform, Display, DrawParameters};
+use glium::Display;
 use log::{debug, info};
 use std::time::{Duration, Instant};
-use glium::index::NoIndices;
-use glium::index::PrimitiveType::TrianglesList;
-use glium::uniforms::{EmptyUniforms, Uniforms, UniformsStorage};
-use crate::gl::vertex_buffer::{VertexBuffer, VertexPos, VertexPosColour};
 
 struct Campinho {
     window: Window,
     arena: Arena,
-    default_shader: Shader<VertexPosColour, [[f32; 4];4], UniformsStorage<'static, [[f32; 4];4], EmptyUniforms>>,
-    colour_wheel_shader: Shader<VertexPos>,
+    default_shader: Shader<VertexPosColour, UniformProjView>,
     display: Display<WindowSurface>,
     fps: usize,
     last_fps_time: Instant,
@@ -38,6 +36,7 @@ struct Campinho {
     draw_calls: u32,
     middle_button_held: bool,
     last_cursor_pos: Point2<f32>,
+    colour_wheel_manager: ColourWheelManager,
 }
 
 impl ApplicationHandler for Campinho {
@@ -127,56 +126,11 @@ impl Campinho {
             }
         "#;
         let default_shader = Shader::new(&display, vs, fs);
-        let vs = r#"
-            #version 330
-
-            in vec3 pos;
-            out vec2 v_pos;
-
-            uniform mat4 proj;
-            uniform mat4 view;
-
-            void main() {
-               gl_Position = proj * view * vec4(pos, 1.0);
-                v_pos = pos.xy;
-            }
-        "#;
-        let fs = r#"
-            #version 330
-
-            in vec2 v_pos;
-            out vec4 color;
-
-            uniform vec2 centre;
-            uniform float radius;
-            uniform float saturation;
-
-            vec3 hsv2rgb(vec3 c) {
-                vec4 k = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-                vec3 p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
-                return c.z * mix(k.xxx, clamp(p - k.xxx, 0.0, 1.0), c.y);
-            }
-
-            void main() {
-                vec2 deltas = v_pos - centre;
-                float dist_sqr = deltas.x * deltas.x + deltas.y * deltas.y;
-                if (dist_sqr > radius * radius) {
-                    discard;
-                }
-                float hue = atan(deltas.x, deltas.y) / (2 * 3.141592653589);
-                float val = sqrt(dist_sqr) / radius;
-                vec3 rgb = hsv2rgb(vec3(hue, saturation, val));
-                color = vec4(rgb, 1.0);
-            }
-        "#;
-        let colour_wheel_shader = Shader::new(&display, vs, fs);
         Self {
             arena: Arena::new(&display),
             font_system: FontSystem::new(&display),
             default_shader,
-            colour_wheel_shader,
             window,
-            display,
             fps: 0,
             last_fps_time: Instant::now(),
             last_frame_time: Instant::now(),
@@ -184,6 +138,8 @@ impl Campinho {
             draw_calls: 0,
             middle_button_held: false,
             last_cursor_pos: Point2::origin(),
+            colour_wheel_manager: ColourWheelManager::new(&display),
+            display,
         }
     }
 
@@ -216,40 +172,7 @@ impl Campinho {
         let mut frame = Frame::new(&self.display);
         let size = self.window.inner_size();
         self.arena.render(&mut frame, &self.default_shader, &mut self.font_system, size);
-        let mut buffer = VertexBuffer::new("Color Wheel", &self.display, 6);
-        {
-            let mut writer = buffer.write(&self.display);
-            let mut stack = writer.stack();
-            stack.push_quad([
-                VertexPos::new(-25.0, 25.0),
-                VertexPos::new(-25.0, -25.0),
-                VertexPos::new(25.0, -25.0),
-                VertexPos::new(25.0, 25.0),
-            ]);
-        }
-        let aspect_ratio = size.width as f32 / size.height as f32;
-        let proj_matrix = ortho(
-            -aspect_ratio * 50.0,
-            aspect_ratio * 50.0,
-            -50.0,
-            50.0,
-            100.0,
-            -100.0,
-        );
-        let eye = Point3::new(0.0, 0.0, 100.0);
-        let target = Point3::new(0.0, 0.0, 0.0);
-        let up = Vector3::unit_y();
-        let view_matrix = Matrix4::look_at_rh(eye, target, up);
-        let proj_matrix: [[f32; 4]; 4] = proj_matrix.into();
-        let view_matrix: [[f32; 4]; 4] = view_matrix.into();
-        let uniforms = uniform! {
-            proj: proj_matrix,
-            view: view_matrix,
-            centre: [0.0f32, 0.0],
-            radius: 25.0f32,
-            saturation: 1.0f32,
-        };
-        frame.draw(&buffer, NoIndices(TrianglesList), &self.colour_wheel_shader, &uniforms, &DrawParameters::default());
+        self.colour_wheel_manager.draw(&mut frame, size);
         self.draw_calls += frame.draw_calls();
         self.fps += 1;
     }

@@ -1,5 +1,6 @@
-﻿use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
-use crate::gl::frame::Shader;
+﻿use crate::colour::ColourU8;
+use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
+use crate::gl::shader::{Shader, UniformProjView};
 use crate::gl::vertex_buffer::VertexBuffer;
 use crate::{if_else, Frame, VertexPosColour};
 use ab_glyph::{point, Rect};
@@ -10,9 +11,8 @@ use glium::index::PrimitiveType::{LinesList, TrianglesList};
 use glium::winit::dpi::PhysicalSize;
 use glium::winit::event::ElementState;
 use glium::winit::keyboard::KeyCode;
-use glium::{uniform, Blend, Display, DrawParameters};
+use glium::{Blend, Display, DrawParameters};
 use std::time::Duration;
-use crate::colour::ColourU8;
 
 pub(super) struct Arena {
     zoom_level: f32,
@@ -153,14 +153,14 @@ impl Arena {
         self.zoom_timer = self.zoom_timer.saturating_sub(dt);
     }
 
-    pub(super) fn render(&mut self, frame: &mut Frame, shader: &Shader<VertexPosColour>, font: &mut FontSystem, size: PhysicalSize<u32>) {
+    pub(super) fn render(&mut self, frame: &mut Frame, shader: &Shader<VertexPosColour, UniformProjView>, font: &mut FontSystem, size: PhysicalSize<u32>) {
         let aspect_ratio = size.width as f32 / size.height as f32;
         frame.clear_colour(ColourU8(25, 25, 25, 255));
         self.draw_grid(frame, font, shader, aspect_ratio);
         self.draw_ui(frame, font, shader, aspect_ratio);
     }
 
-    fn draw_ui(&mut self, frame: &mut Frame, font: &mut FontSystem, shader: &Shader<VertexPosColour>, aspect_ratio: f32) {
+    fn draw_ui(&mut self, frame: &mut Frame, font: &mut FontSystem, shader: &Shader<VertexPosColour, UniformProjView>, aspect_ratio: f32) {
         let display = frame.display();
         let proj_matrix = ortho(
             -aspect_ratio * 50.0,
@@ -170,12 +170,11 @@ impl Arena {
             100.0,
             -100.0,
         );
-        let eye = Point3::new(0.0, 0.0, 100.0);
-        let target = Point3::new(0.0, 0.0, 0.0);
-        let up = Vector3::unit_y();
-        let view_matrix = Matrix4::look_at_rh(eye, target, up);
-        let proj_matrix: [[f32; 4]; 4] = proj_matrix.into();
-        let view_matrix: [[f32; 4]; 4] = view_matrix.into();
+        let view_matrix = Matrix4::look_at_rh(
+            Point3::new(0.0, 0.0, 100.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Vector3::unit_y(),
+        );
         if self.zoom_timer > Duration::ZERO {
             let zoom_level_text = format!("x{}", self.zoom_level);
             let alpha = if self.zoom_timer > Duration::from_secs(1) {
@@ -197,10 +196,7 @@ impl Arena {
                     VertexPosColour::new(50.0 * aspect_ratio - text_width - 1.5, -50.0 + text_height - 0.5, colour),
                 ]);
             }
-            let uniforms = uniform! {
-            proj: proj_matrix,
-            view: view_matrix,
-        };
+            let uniforms = UniformProjView::new(proj_matrix, view_matrix);
             let mut draw_parameters = DrawParameters::default();
             draw_parameters.blend = Blend::alpha_blending();
             frame.draw(&self.grid_lines_vertex_buffer, NoIndices(TrianglesList), shader, &uniforms, &draw_parameters);
@@ -208,7 +204,7 @@ impl Arena {
         }
     }
 
-    fn draw_grid(&mut self, frame: &mut Frame, font: &mut FontSystem, shader: &Shader<VertexPosColour>, aspect_ratio: f32) {
+    fn draw_grid(&mut self, frame: &mut Frame, font: &mut FontSystem, shader: &Shader<VertexPosColour, UniformProjView>, aspect_ratio: f32) {
         let view_range = 8.0 * self.zoom_level;
         let proj_matrix = ortho(
             -aspect_ratio * view_range,
@@ -222,12 +218,7 @@ impl Arena {
         let target = Point3::new(self.x, self.y, 0.0);
         let up = Vector3::unit_y();
         let view_matrix = Matrix4::look_at_rh(eye, target, up);
-        let proj_matrix: [[f32; 4]; 4] = proj_matrix.into();
-        let view_matrix: [[f32; 4]; 4] = view_matrix.into();
-        let uniforms = uniform! {
-            proj: proj_matrix,
-            view: view_matrix,
-        };
+        let uniforms = UniformProjView::new(proj_matrix, view_matrix);
         let frustum = self.frustum.unwrap_or_else(|| Frustum::new(self.x, self.y, view_range * aspect_ratio, view_range));
         if let FrustumHolder::ShouldCapture = self.frustum {
             self.frustum = FrustumHolder::Captured(frustum);
