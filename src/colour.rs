@@ -41,6 +41,27 @@ impl Colour for ColourU8 {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct ColorHex(pub u32);
+
+impl Colour for ColorHex {
+    fn r(&self) -> f32 {
+        ((self.0 >> 16) & 0xFF) as f32 / 255.0
+    }
+
+    fn g(&self) -> f32 {
+        ((self.0 >> 8) & 0xFF) as f32 / 255.0
+    }
+
+    fn b(&self) -> f32 {
+        ((self.0 >> 0) & 0xFF) as f32 / 255.0
+    }
+
+    fn a(&self) -> f32 {
+        ((self.0 >> 24) & 0xFF) as f32 / 255.0
+    }
+}
+
 pub struct ColourWheelManager {
     shader: Shader<VertexPos, ColourWheelUniform>,
 }
