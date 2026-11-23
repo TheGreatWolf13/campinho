@@ -1,7 +1,7 @@
 ﻿use crate::colour::ColourU8;
 use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
-use crate::gl::shader::{Shader, UniformProjView};
-use crate::gl::vertex_buffer::VertexBuffer;
+use crate::gl::shader::{Shader, UniformProjView, UniformProjViewThickness};
+use crate::gl::vertex_buffer::{VertexBorder, VertexBuffer};
 use crate::{if_else, Frame, VertexPosColour};
 use ab_glyph::{point, Rect};
 use cgmath::{ortho, Matrix4, Point3, Vector2, Vector3};
@@ -9,7 +9,6 @@ use glium::glutin::surface::WindowSurface;
 use glium::index::NoIndices;
 use glium::index::PrimitiveType::{LinesList, TrianglesList};
 use glium::winit::dpi::PhysicalSize;
-use glium::winit::event::ElementState;
 use glium::winit::keyboard::KeyCode;
 use glium::{Blend, Display, DrawParameters};
 use std::time::Duration;
@@ -113,16 +112,12 @@ impl Arena {
         }
     }
 
-    pub(super) fn handle_keys(&mut self, key: KeyCode, state: ElementState) {
-        let state = match state {
-            ElementState::Pressed => true,
-            ElementState::Released => false,
-        };
+    pub(super) fn handle_keys(&mut self, key: KeyCode, pressed: bool) {
         match key {
-            KeyCode::KeyW => self.forward = state,
-            KeyCode::KeyA => self.leftward = state,
-            KeyCode::KeyS => self.backward = state,
-            KeyCode::KeyD => self.rightward = state,
+            KeyCode::KeyW => self.forward = pressed,
+            KeyCode::KeyA => self.leftward = pressed,
+            KeyCode::KeyS => self.backward = pressed,
+            KeyCode::KeyD => self.rightward = pressed,
             _ => (),
         }
     }
@@ -153,14 +148,14 @@ impl Arena {
         self.zoom_timer = self.zoom_timer.saturating_sub(dt);
     }
 
-    pub(super) fn render(&mut self, frame: &mut Frame, shader: &Shader<VertexPosColour, UniformProjView>, font: &mut FontSystem, size: PhysicalSize<u32>) {
+    pub(super) fn render(&mut self, frame: &mut Frame, default_shader: &Shader<VertexPosColour, UniformProjView>, border_shader: &Shader<VertexBorder, UniformProjViewThickness>, font: &mut FontSystem, size: PhysicalSize<u32>) {
         let aspect_ratio = size.width as f32 / size.height as f32;
         frame.clear_colour(ColourU8(25, 25, 25, 255));
-        self.draw_grid(frame, font, shader, aspect_ratio);
-        self.draw_ui(frame, font, shader, aspect_ratio);
+        self.draw_grid(frame, font, default_shader, aspect_ratio);
+        self.draw_ui(frame, font, default_shader, border_shader, aspect_ratio);
     }
 
-    fn draw_ui(&mut self, frame: &mut Frame, font: &mut FontSystem, shader: &Shader<VertexPosColour, UniformProjView>, aspect_ratio: f32) {
+    fn draw_ui(&mut self, frame: &mut Frame, font: &mut FontSystem, default_shader: &Shader<VertexPosColour, UniformProjView>, border_shader: &Shader<VertexBorder, UniformProjViewThickness>, aspect_ratio: f32) {
         let display = frame.display();
         let proj_matrix = ortho(
             -aspect_ratio * 50.0,
@@ -175,6 +170,7 @@ impl Arena {
             Point3::new(0.0, 0.0, 0.0),
             Vector3::unit_y(),
         );
+        //Draw zoom
         if self.zoom_timer > Duration::ZERO {
             let zoom_level_text = format!("x{}", self.zoom_level);
             let alpha = if self.zoom_timer > Duration::from_secs(1) {
@@ -199,8 +195,41 @@ impl Arena {
             let uniforms = UniformProjView::new(proj_matrix, view_matrix);
             let mut draw_parameters = DrawParameters::default();
             draw_parameters.blend = Blend::alpha_blending();
-            frame.draw(&self.grid_lines_vertex_buffer, NoIndices(TrianglesList), shader, &uniforms, &draw_parameters);
+            frame.draw(default_shader, &self.grid_lines_vertex_buffer, NoIndices(TrianglesList), &uniforms, &draw_parameters);
             font.render_text(frame, &mut self.grid_numbers_vertex_buffer, &zoom_level_text, HorizontalAlignment::Right(50.0 * aspect_ratio - 1.0), VerticalAlignment::Bottom(-49.0), 10.0, ColourU8(0, 255, 0, alpha), proj_matrix, view_matrix);
+        }
+        //Draw char creator
+        {
+            let mut buffer = VertexBuffer::new("Char buffer", display, 3);
+            {
+                let mut writer = buffer.write(display);
+                let mut stack = writer.stack();
+                stack.push(VertexBorder {
+                    pos: [10.0, 10.0, 0.0],
+                    fill_colour: [1.0, 0.0, 0.0, 1.0],
+                    border_colour: [0.0, 0.0, 0.0, 1.0],
+                    barycenter_basis: [0.0, 0.0],
+                    borders: [0.0, f32::INFINITY, 0.0],
+                });
+                stack.push(VertexBorder {
+                    pos: [-10.0, 0.0, 0.0],
+                    fill_colour: [1.0, 0.0, 0.0, 1.0],
+                    border_colour: [0.0, 0.0, 0.0, 1.0],
+                    barycenter_basis: [1.0, 0.0],
+                    borders: [0.0, f32::INFINITY, 0.0],
+                });
+                stack.push(VertexBorder {
+                    pos: [0.0, -10.0, 0.0],
+                    fill_colour: [1.0, 0.0, 0.0, 1.0],
+                    border_colour: [0.0, 0.0, 0.0, 1.0],
+                    barycenter_basis: [0.0, 1.0],
+                    borders: [0.0, f32::INFINITY, 0.0],
+                });
+            }
+            let uniforms = UniformProjViewThickness::new(proj_matrix, view_matrix, 10.0);
+            let mut draw_parameters = DrawParameters::default();
+            draw_parameters.blend = Blend::alpha_blending();
+            frame.draw(border_shader, &buffer, NoIndices(TrianglesList), &uniforms, &draw_parameters);
         }
     }
 
@@ -242,7 +271,7 @@ impl Arena {
                 stack.push(Self::grid_vertex(x1 as f32, y as f32));
             }
         }
-        frame.draw(&self.grid_lines_vertex_buffer, NoIndices(LinesList), &shader, &uniforms, &draw_params);
+        frame.draw(&shader, &self.grid_lines_vertex_buffer, NoIndices(LinesList), &uniforms, &draw_params);
         if self.zoom_level <= 4.0 {
             let mut batch = font.render_in_batch(frame, ColourU8(18, 245, 255, 255), proj_matrix, view_matrix);
             {
@@ -272,7 +301,7 @@ impl Arena {
     fn grid_vertex(x: f32, y: f32) -> VertexPosColour {
         VertexPosColour {
             pos: [x, y, 0.0],
-            color: [1.0, 1.0, 1.0, 1.0],
+            colour: [1.0, 1.0, 1.0, 1.0],
         }
     }
 }

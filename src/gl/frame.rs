@@ -25,7 +25,7 @@ impl<'display> Frame<'display> {
         self.frame.as_mut().unwrap().clear_color_srgb(colour.r(), colour.g(), colour.b(), colour.a());
     }
 
-    pub fn draw<'a, V: Vertex, U: Uniforms>(&mut self, vertex_buffer: &VertexBuffer<V>, index_buffer: impl Into<index::IndicesSource<'a>>, shader: &Shader<V, U>, uniforms: &U, draw_parameters: &DrawParameters<'_>) {
+    pub fn draw<'a, V: Vertex, U: Uniforms>(&mut self, shader: &Shader<V, U>, vertex_buffer: &VertexBuffer<V>, index_buffer: impl Into<index::IndicesSource<'a>>, uniforms: &U, draw_parameters: &DrawParameters<'_>) {
         self.frame.as_mut().unwrap().draw(vertex_buffer.slice(), index_buffer, &shader.program, uniforms, draw_parameters).unwrap();
         self.draw_calls += 1;
     }

@@ -33,7 +33,20 @@ impl UniformProjView {
     }
 }
 
+pub struct UniformProjViewThickness(Uniform<f32, Uniform<[[f32; 4]; 4], Uniform<[[f32; 4]; 4], EmptyUniforms>>>);
+
+impl UniformProjViewThickness {
+    pub fn new(proj: impl Into<[[f32; 4]; 4]>, view: impl Into<[[f32; 4]; 4]>, thickness: f32) -> Self {
+        Self(uniform! {
+           proj: proj.into(),
+            view: view.into(),
+            thickness: thickness,
+        })
+    }
+}
+
 impl_uniforms!(UniformProjView);
+impl_uniforms!(UniformProjViewThickness);
 
 #[macro_export]
 macro_rules! impl_uniforms {

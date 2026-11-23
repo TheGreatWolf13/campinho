@@ -8,14 +8,14 @@ use log::info;
 #[derive(Copy, Clone)]
 pub struct VertexPosColour {
     pub pos: [f32; 3],
-    pub color: [f32; 4],
+    pub colour: [f32; 4],
 }
 
 impl VertexPosColour {
     pub fn new(x: f32, y: f32, color: impl Colour) -> Self {
         Self {
             pos: [x, y, 0.0],
-            color: [color.r(), color.g(), color.b(), color.a()],
+            colour: [color.r(), color.g(), color.b(), color.a()],
         }
     }
 }
@@ -33,8 +33,18 @@ impl VertexPos {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct VertexBorder {
+    pub pos: [f32; 3],
+    pub fill_colour: [f32; 4],
+    pub border_colour: [f32; 4],
+    pub barycenter_basis: [f32; 2],
+    pub borders: [f32; 3],
+}
+
 implement_vertex!(VertexPos, pos);
-implement_vertex!(VertexPosColour, pos, color);
+implement_vertex!(VertexPosColour, pos, colour);
+implement_vertex!(VertexBorder, pos, fill_colour, border_colour, barycenter_basis, borders);
 
 pub struct VertexBuffer<T: Vertex> {
     name: &'static str,

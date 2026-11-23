@@ -9,13 +9,13 @@ use crate::arena::Arena;
 use crate::colour::ColourWheelManager;
 use crate::font::FontSystem;
 use crate::gl::frame::Frame;
-use crate::gl::shader::{Shader, UniformProjView};
-use crate::gl::vertex_buffer::VertexPosColour;
+use crate::gl::shader::{Shader, UniformProjView, UniformProjViewThickness};
+use crate::gl::vertex_buffer::{VertexBorder, VertexPosColour};
 use cgmath::{EuclideanSpace, Point2};
 use glium::backend::glutin::SimpleWindowBuilder;
 use glium::glutin::surface::WindowSurface;
 use glium::winit::application::ApplicationHandler;
-use glium::winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
+use glium::winit::event::{KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
 use glium::winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use glium::winit::keyboard::{KeyCode, PhysicalKey};
 use glium::winit::window::{Icon, Window, WindowAttributes, WindowId};
@@ -27,6 +27,7 @@ struct Campinho {
     window: Window,
     arena: Arena,
     default_shader: Shader<VertexPosColour, UniformProjView>,
+    border_shader: Shader<VertexBorder, UniformProjViewThickness>,
     display: Display<WindowSurface>,
     fps: usize,
     last_fps_time: Instant,
@@ -104,32 +105,84 @@ impl Campinho {
             #version 330
 
             in vec3 pos;
-            in vec4 color;
-            out vec4 v_color;
+            in vec4 colour;
+            out vec4 v_colour;
 
             uniform mat4 proj;
             uniform mat4 view;
 
             void main() {
                 gl_Position = proj * view * vec4(pos, 1.0);
-                v_color = color;
+                v_colour = colour;
             }
         "#;
         let fs = r#"
             #version 330
 
-            in vec4 v_color;
-            out vec4 color;
+            in vec4 v_colour;
+            out vec4 colour;
 
             void main() {
-                color = v_color;
+                colour = v_colour;
             }
         "#;
         let default_shader = Shader::new(&display, vs, fs);
+        let vs = r#"
+            #version 330
+
+            in vec3 pos;
+            in vec4 fill_colour;
+            in vec4 border_colour;
+            in vec2 barycenter_basis;
+            in vec3 borders;
+
+            out vec4 v_fill_colour;
+            out vec4 v_border_colour;
+            out vec2 v_barycenter_basis;
+            flat out vec3 v_borders;
+
+            uniform mat4 proj;
+            uniform mat4 view;
+
+            void main() {
+                gl_Position = proj * view * vec4(pos, 1.0);
+                v_fill_colour = fill_colour;
+                v_border_colour = border_colour;
+                v_barycenter_basis = barycenter_basis;
+                v_borders = borders;
+            }
+        "#;
+        let fs = r#"
+            #version 330
+
+            in vec4 v_fill_colour;
+            in vec4 v_border_colour;
+            in vec2 v_barycenter_basis;
+            flat in vec3 v_borders;
+
+            out vec4 colour;
+
+            uniform float thickness;
+
+            void main() {
+                vec3 bary = vec3(1.0 - v_barycenter_basis.x - v_barycenter_basis.y, v_barycenter_basis.x, v_barycenter_basis.y);
+                vec3 d = fwidth(bary);
+                vec3 a = smoothstep(
+                    d * (thickness - 1.0 * 0.5),
+                    d * (thickness + 1.0 * 0.5),
+                    bary
+                );
+                a += v_borders;
+                float border = min(a.x, min(a.y, a.z));
+                colour = mix(v_border_colour, v_fill_colour, border);
+            }
+        "#;
+        let border_shader = Shader::new(&display, vs, fs);
         Self {
             arena: Arena::new(&display),
             font_system: FontSystem::new(&display),
             default_shader,
+            border_shader,
             window,
             fps: 0,
             last_fps_time: Instant::now(),
@@ -151,8 +204,12 @@ impl Campinho {
         match event.physical_key {
             PhysicalKey::Code(k) => {
                 match k {
-                    KeyCode::KeyW | KeyCode::KeyS | KeyCode::KeyA | KeyCode::KeyD => self.arena.handle_keys(k, event.state),
-                    KeyCode::F4 if event.state == ElementState::Pressed => self.arena.toggle_capture_frustum(),
+                    KeyCode::KeyW | KeyCode::KeyS | KeyCode::KeyA | KeyCode::KeyD => self.arena.handle_keys(k, event.state.is_pressed()),
+                    KeyCode::F4 => {
+                        if event.state.is_pressed() {
+                            self.arena.toggle_capture_frustum();
+                        }
+                    }
                     _ => (),
                 }
             }
@@ -171,8 +228,7 @@ impl Campinho {
         }
         let mut frame = Frame::new(&self.display);
         let size = self.window.inner_size();
-        self.arena.render(&mut frame, &self.default_shader, &mut self.font_system, size);
-        self.colour_wheel_manager.draw(&mut frame, size);
+        self.arena.render(&mut frame, &self.default_shader, &self.border_shader, &mut self.font_system, size);
         self.draw_calls += frame.draw_calls();
         self.fps += 1;
     }

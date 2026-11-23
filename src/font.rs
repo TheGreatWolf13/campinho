@@ -250,9 +250,9 @@ impl<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<
         draw_params.blend = Blend::alpha_blending();
         let uniforms = GlyphUniform::new(self.proj, self.view, self.colour, self.atlas.sampler());
         self.frame.draw(
+            &self.renderer.glyph_shader,
             buffer,
             NoIndices(PrimitiveType::TrianglesList),
-            &self.renderer.glyph_shader,
             &uniforms,
             &draw_params,
         );

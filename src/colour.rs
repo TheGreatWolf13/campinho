@@ -122,7 +122,7 @@ impl ColourWheelManager {
         let up = Vector3::unit_y();
         let view_matrix = Matrix4::look_at_rh(eye, target, up);
         let uniforms = ColourWheelUniform::new(proj_matrix, view_matrix, [0.0, 0.0], 25.0, 1.0);
-        frame.draw(&buffer, NoIndices(TrianglesList), &self.shader, &uniforms, &DrawParameters::default());
+        frame.draw(&self.shader, &buffer, NoIndices(TrianglesList), &uniforms, &DrawParameters::default());
     }
 }
 
