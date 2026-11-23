@@ -1,4 +1,4 @@
-﻿use crate::colour::ColourU8;
+﻿use crate::colour::{Colour, ColourHex, ColourU8};
 use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
 use crate::gl::shader::{Shader, UniformProjView, UniformProjViewThickness};
 use crate::gl::vertex_buffer::{VertexBorder, VertexBuffer};
@@ -201,27 +201,29 @@ impl Arena {
         //Draw char creator
         {
             let mut buffer = VertexBuffer::new("Char buffer", display, 3);
+            let fill_colour = ColourHex(0xFFAAAFC3);
+            let border_colour = ColourHex(0xFF9398AC);
             {
                 let mut writer = buffer.write(display);
                 let mut stack = writer.stack();
                 stack.push(VertexBorder {
                     pos: [10.0, 10.0, 0.0],
-                    fill_colour: [1.0, 0.0, 0.0, 1.0],
-                    border_colour: [0.0, 0.0, 0.0, 1.0],
+                    fill_colour: fill_colour.as_array(),
+                    border_colour: border_colour.as_array(),
                     barycenter_basis: [0.0, 0.0],
                     borders: [0.0, f32::INFINITY, 0.0],
                 });
                 stack.push(VertexBorder {
                     pos: [-10.0, 0.0, 0.0],
-                    fill_colour: [1.0, 0.0, 0.0, 1.0],
-                    border_colour: [0.0, 0.0, 0.0, 1.0],
+                    fill_colour: fill_colour.as_array(),
+                    border_colour:  border_colour.as_array(),
                     barycenter_basis: [1.0, 0.0],
                     borders: [0.0, f32::INFINITY, 0.0],
                 });
                 stack.push(VertexBorder {
                     pos: [0.0, -10.0, 0.0],
-                    fill_colour: [1.0, 0.0, 0.0, 1.0],
-                    border_colour: [0.0, 0.0, 0.0, 1.0],
+                    fill_colour: fill_colour.as_array(),
+                    border_colour:  border_colour.as_array(),
                     barycenter_basis: [0.0, 1.0],
                     borders: [0.0, f32::INFINITY, 0.0],
                 });

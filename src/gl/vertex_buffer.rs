@@ -46,6 +46,34 @@ implement_vertex!(VertexPos, pos);
 implement_vertex!(VertexPosColour, pos, colour);
 implement_vertex!(VertexBorder, pos, fill_colour, border_colour, barycenter_basis, borders);
 
+#[derive(Copy, Clone)]
+pub enum BitSet3 {
+    FFF = 0,
+    FFT,
+    FTF,
+    FTT,
+    TFF,
+    TFT,
+    TTF,
+    TTT,
+}
+
+impl BitSet3 {
+    pub fn test(self, index: u32) -> bool {
+        ((self as u8 >> index) & 1) == 1
+    }
+
+    pub fn as_array(self) -> [f32; 3] {
+        let mut array = [0.0; 3];
+        for i in 0..3 {
+            if self.test(i) {
+                array[i as usize] = f32::INFINITY;
+            }
+        }
+        array
+    }
+}
+
 pub struct VertexBuffer<T: Vertex> {
     name: &'static str,
     inner: VB<T>,
@@ -135,5 +163,19 @@ impl<'a, T: Vertex> WritableVertexBufferStack<'a, T> {
         self.push(v[3]);
         self.push(v[1]);
         self.push(v[2]);
+    }
+}
+
+impl <'a> WritableVertexBufferStack<'a, VertexBorder> {
+    pub fn push_triangle(&mut self, vertices: [[f32; 3]; 3], fill_colour: impl Colour, border_colour: impl Colour, borders: BitSet3) {
+        for i in 0..3 {
+            self.push(VertexBorder {
+                pos: vertices[i],
+                fill_colour: fill_colour.as_array(),
+                border_colour: border_colour.as_array(),
+                barycenter_basis: todo!(),
+                borders: borders.as_array(),
+            })
+        }
     }
 }

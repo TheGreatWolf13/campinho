@@ -18,6 +18,10 @@ pub trait Colour: Copy {
     fn b(&self) -> f32;
 
     fn a(&self) -> f32;
+
+    fn as_array(self) -> [f32; 4] {
+        [self.r(), self.g(), self.b(), self.a()]
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -42,9 +46,9 @@ impl Colour for ColourU8 {
 }
 
 #[derive(Copy, Clone)]
-pub struct ColorHex(pub u32);
+pub struct ColourHex(pub u32);
 
-impl Colour for ColorHex {
+impl Colour for ColourHex {
     fn r(&self) -> f32 {
         ((self.0 >> 16) & 0xFF) as f32 / 255.0
     }
