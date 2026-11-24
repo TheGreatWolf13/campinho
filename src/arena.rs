@@ -1,7 +1,7 @@
-﻿use crate::colour::{Colour, ColourHex, ColourU8};
+﻿use crate::colour::{ColourHex, ColourU8};
 use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
 use crate::gl::shader::{Shader, UniformProjView, UniformProjViewThickness};
-use crate::gl::vertex_buffer::{VertexBorder, VertexBuffer};
+use crate::gl::vertex_buffer::{BitSet3, VertexBorder, VertexBuffer};
 use crate::{if_else, Frame, VertexPosColour};
 use ab_glyph::{point, Rect};
 use cgmath::{ortho, Matrix4, Point3, Vector2, Vector3};
@@ -206,27 +206,16 @@ impl Arena {
             {
                 let mut writer = buffer.write(display);
                 let mut stack = writer.stack();
-                stack.push(VertexBorder {
-                    pos: [10.0, 10.0, 0.0],
-                    fill_colour: fill_colour.as_array(),
-                    border_colour: border_colour.as_array(),
-                    barycenter_basis: [0.0, 0.0],
-                    borders: [0.0, f32::INFINITY, 0.0],
-                });
-                stack.push(VertexBorder {
-                    pos: [-10.0, 0.0, 0.0],
-                    fill_colour: fill_colour.as_array(),
-                    border_colour:  border_colour.as_array(),
-                    barycenter_basis: [1.0, 0.0],
-                    borders: [0.0, f32::INFINITY, 0.0],
-                });
-                stack.push(VertexBorder {
-                    pos: [0.0, -10.0, 0.0],
-                    fill_colour: fill_colour.as_array(),
-                    border_colour:  border_colour.as_array(),
-                    barycenter_basis: [0.0, 1.0],
-                    borders: [0.0, f32::INFINITY, 0.0],
-                });
+                stack.push_bordered_triangle(
+                    [
+                        [10.0, 10.0, 0.0],
+                        [-10.0, 0.0, 0.0],
+                        [0.0, -10.0, 0.0],
+                    ],
+                    fill_colour,
+                    border_colour,
+                    BitSet3::B110,
+                );
             }
             let uniforms = UniformProjViewThickness::new(proj_matrix, view_matrix, 10.0);
             let mut draw_parameters = DrawParameters::default();

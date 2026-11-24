@@ -4,6 +4,18 @@ use glium::glutin::surface::WindowSurface;
 use glium::vertex::{VertexBuffer as VB, VertexBufferSlice};
 use glium::{implement_vertex, Display, Vertex};
 use log::info;
+use seq_macro::seq;
+
+const BARYCENTER_BASIS: [[f32; 2]; 3] = [
+    [0.0, 0.0],
+    [1.0, 0.0],
+    [0.0, 1.0],
+];
+const TRIANGLE_BORDER_ORDER: [u32; 3] = {
+    let mut arr = [2, 0, 1];
+    arr.reverse();
+    arr
+};
 
 #[derive(Copy, Clone)]
 pub struct VertexPosColour {
@@ -46,28 +58,26 @@ implement_vertex!(VertexPos, pos);
 implement_vertex!(VertexPosColour, pos, colour);
 implement_vertex!(VertexBorder, pos, fill_colour, border_colour, barycenter_basis, borders);
 
-#[derive(Copy, Clone)]
-pub enum BitSet3 {
-    FFF = 0,
-    FFT,
-    FTF,
-    FTT,
-    TFF,
-    TFT,
-    TTF,
-    TTT,
-}
+seq!(N in 0b001..=0b111 {
+    #[derive(Copy, Clone)]
+    #[repr(u8)]
+    pub enum BitSet3 {
+        #(
+            B~N = N,
+        )*
+    }
+});
 
 impl BitSet3 {
-    pub fn test(self, index: u32) -> bool {
-        ((self as u8 >> index) & 1) == 1
+    pub const fn test(self, vertex: u32) -> bool {
+        ((self as u8 >> vertex) & 1) == 1
     }
 
     pub fn as_array(self) -> [f32; 3] {
         let mut array = [0.0; 3];
-        for i in 0..3 {
-            if self.test(i) {
-                array[i as usize] = f32::INFINITY;
+        for (i, vertex) in TRIANGLE_BORDER_ORDER.iter().enumerate() {
+            if !self.test(*vertex) {
+                array[i] = f32::INFINITY;
             }
         }
         array
@@ -166,14 +176,14 @@ impl<'a, T: Vertex> WritableVertexBufferStack<'a, T> {
     }
 }
 
-impl <'a> WritableVertexBufferStack<'a, VertexBorder> {
-    pub fn push_triangle(&mut self, vertices: [[f32; 3]; 3], fill_colour: impl Colour, border_colour: impl Colour, borders: BitSet3) {
-        for i in 0..3 {
+impl<'a> WritableVertexBufferStack<'a, VertexBorder> {
+    pub fn push_bordered_triangle(&mut self, vertices: [[f32; 3]; 3], fill_colour: impl Colour, border_colour: impl Colour, borders: BitSet3) {
+        for (i, basis) in BARYCENTER_BASIS.iter().enumerate() {
             self.push(VertexBorder {
                 pos: vertices[i],
                 fill_colour: fill_colour.as_array(),
                 border_colour: border_colour.as_array(),
-                barycenter_basis: todo!(),
+                barycenter_basis: *basis,
                 borders: borders.as_array(),
             })
         }
