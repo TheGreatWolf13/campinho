@@ -1,4 +1,5 @@
-﻿use crate::colour::Colour;
+﻿use std::mem;
+use crate::colour::Colour;
 use glium::buffer::WriteMapping;
 use glium::glutin::surface::WindowSurface;
 use glium::vertex::{VertexBuffer as VB, VertexBufferSlice};
@@ -58,8 +59,8 @@ implement_vertex!(VertexPos, pos);
 implement_vertex!(VertexPosColour, pos, colour);
 implement_vertex!(VertexBorder, pos, fill_colour, border_colour, barycenter_basis, borders);
 
-seq!(N in 0b001..=0b111 {
-    #[derive(Copy, Clone)]
+seq!(N in 0b000..=0b111 {
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     #[repr(u8)]
     pub enum BitSet3 {
         #(
@@ -81,6 +82,40 @@ impl BitSet3 {
             }
         }
         array
+    }
+}
+
+seq!(N in 0b0001..=0b1111 {
+    #[derive(Copy, Clone)]
+    #[repr(u8)]
+    pub enum BitSet4 {
+        #(
+            B~N = N,
+        )*
+    }
+});
+
+impl BitSet4 {
+    pub const fn test(self, vertex: u32) -> bool {
+        ((self as u8 >> vertex) & 1) == 1
+    }
+
+    pub fn nth_triangle(self, triangle: usize) -> BitSet3 {
+        match triangle {
+            0 => {
+                let bit_pattern = (self as u8 >> 1) & 0b110;
+                unsafe {
+                    mem::transmute(bit_pattern)
+                }
+            }
+            1 => {
+                let bit_pattern = self as u8 & 0b011;
+                unsafe {
+                    mem::transmute(bit_pattern)
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -178,14 +213,32 @@ impl<'a, T: Vertex> WritableVertexBufferStack<'a, T> {
 
 impl<'a> WritableVertexBufferStack<'a, VertexBorder> {
     pub fn push_bordered_triangle(&mut self, vertices: [[f32; 3]; 3], fill_colour: impl Colour, border_colour: impl Colour, borders: BitSet3) {
+        let (borders, border_colour) = if borders == BitSet3::B000 {
+            (BitSet3::B111, fill_colour.as_array())
+        } //
+        else {
+            (borders, border_colour.as_array())
+        };
         for (i, basis) in BARYCENTER_BASIS.iter().enumerate() {
             self.push(VertexBorder {
                 pos: vertices[i],
                 fill_colour: fill_colour.as_array(),
-                border_colour: border_colour.as_array(),
+                border_colour,
                 barycenter_basis: *basis,
                 borders: borders.as_array(),
             })
+        }
+    }
+
+    pub fn push_bordered_quad(&mut self, vertices: [[f32; 3]; 4], fill_colour: impl Colour, border_colour: impl Colour, borders: BitSet4) {
+        //Make two triangles: [0, 1, 2] and [0, 2, 3]
+        let tringle_vertices = [
+            [0, 1, 2],
+            [0, 2, 3],
+        ].map(|i| i.map(|i| vertices[i]));
+        for (i, triangle) in tringle_vertices.iter().enumerate().rev() {
+            self.push_bordered_triangle(*triangle, fill_colour, border_colour, borders.nth_triangle(i));
+            break;
         }
     }
 }

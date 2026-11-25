@@ -114,7 +114,7 @@ impl ColourWheelManager {
                 color = vec4(rgb, 1.0);
             }
         "#;
-        let shader = Shader::new(&display, vs, fs);
+        let shader = Shader::new(&display, vs, fs, None);
         Self {
             shader
         }

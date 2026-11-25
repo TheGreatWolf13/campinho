@@ -123,7 +123,7 @@ impl FontRenderer {
             }
         "#;
         Self {
-            glyph_shader: Shader::new(display, vs, fs),
+            glyph_shader: Shader::new(display, vs, fs, None),
             font: FontVec::try_from_vec(Vec::from(include_bytes!("../res/JetBrainsMono-Regular.ttf"))).unwrap().into_scaled(PxScale::from(SCALE)),
             glyph_ids_and_advances: HashMap::with_hasher(BuildNoHashHasher::new()),
         }

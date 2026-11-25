@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 struct Campinho {
     window: Window,
     arena: Arena,
-    default_shader: Shader<VertexPosColour, UniformProjView>,
+    line_shader: Shader<VertexPosColour, UniformProjView>,
     border_shader: Shader<VertexBorder, UniformProjViewThickness>,
     display: Display<WindowSurface>,
     fps: usize,
@@ -106,27 +106,58 @@ impl Campinho {
 
             in vec3 pos;
             in vec4 colour;
-            out vec4 v_colour;
 
-            uniform mat4 proj;
-            uniform mat4 view;
+            out vec4 v2g_colour;
 
             void main() {
-                gl_Position = proj * view * vec4(pos, 1.0);
-                v_colour = colour;
+                gl_Position = vec4(pos, 1.0);
+                v2g_colour = colour;
             }
         "#;
         let fs = r#"
             #version 330
 
-            in vec4 v_colour;
+            in vec4 g2f_colour;
             out vec4 colour;
 
             void main() {
-                colour = v_colour;
+                colour = g2f_colour;
             }
         "#;
-        let default_shader = Shader::new(&display, vs, fs);
+        let gs = r#"
+            #version 330
+
+            layout(lines) in;
+            layout(triangle_strip, max_vertices = 4) out;
+
+            in vec4 v2g_colour[];
+
+            out vec4 g2f_colour;
+
+            uniform mat4 proj;
+            uniform mat4 view;
+
+            void main() {
+                vec4 pos0 = gl_in[0].gl_Position;
+                vec4 pos1 = gl_in[1].gl_Position;
+                vec4 dir = pos1 - pos0;
+                vec4 normal = normalize(vec4(-dir.y, dir.x, 0.0, 0.0));
+                gl_Position = proj * view * (pos0 + normal * 0.025);
+                g2f_colour = v2g_colour[0];
+                EmitVertex();
+                gl_Position = proj * view * (pos0 - normal * 0.025);
+                g2f_colour = v2g_colour[0];
+                EmitVertex();
+                gl_Position = proj * view * (pos1 + normal * 0.025);
+                g2f_colour = v2g_colour[1];
+                EmitVertex();
+                gl_Position = proj * view * (pos1 - normal * 0.025);
+                g2f_colour = v2g_colour[1];
+                EmitVertex();
+                EndPrimitive();
+            }
+        "#;
+        let default_shader = Shader::new(&display, vs, fs, Some(gs));
         let vs = r#"
             #version 330
 
@@ -177,11 +208,11 @@ impl Campinho {
                 colour = mix(v_border_colour, v_fill_colour, border);
             }
         "#;
-        let border_shader = Shader::new(&display, vs, fs);
+        let border_shader = Shader::new(&display, vs, fs, None);
         Self {
             arena: Arena::new(&display),
             font_system: FontSystem::new(&display),
-            default_shader,
+            line_shader: default_shader,
             border_shader,
             window,
             fps: 0,
@@ -228,7 +259,7 @@ impl Campinho {
         }
         let mut frame = Frame::new(&self.display);
         let size = self.window.inner_size();
-        self.arena.render(&mut frame, &self.default_shader, &self.border_shader, &mut self.font_system, size);
+        self.arena.render(&mut frame, &self.line_shader, &self.border_shader, &mut self.font_system, size);
         self.draw_calls += frame.draw_calls();
         self.fps += 1;
     }

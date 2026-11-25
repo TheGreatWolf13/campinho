@@ -1,7 +1,7 @@
 ﻿use crate::colour::{ColourHex, ColourU8};
 use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
 use crate::gl::shader::{Shader, UniformProjView, UniformProjViewThickness};
-use crate::gl::vertex_buffer::{BitSet3, VertexBorder, VertexBuffer};
+use crate::gl::vertex_buffer::{BitSet4, VertexBorder, VertexBuffer};
 use crate::{if_else, Frame, VertexPosColour};
 use ab_glyph::{point, Rect};
 use cgmath::{ortho, Matrix4, Point3, Vector2, Vector3};
@@ -200,21 +200,22 @@ impl Arena {
         }
         //Draw char creator
         {
-            let mut buffer = VertexBuffer::new("Char buffer", display, 3);
+            let mut buffer = VertexBuffer::new("Char buffer", display, 6);
             let fill_colour = ColourHex(0xFFAAAFC3);
             let border_colour = ColourHex(0xFF9398AC);
             {
                 let mut writer = buffer.write(display);
                 let mut stack = writer.stack();
-                stack.push_bordered_triangle(
+                stack.push_bordered_quad(
                     [
                         [10.0, 10.0, 0.0],
                         [-10.0, 0.0, 0.0],
-                        [0.0, -10.0, 0.0],
+                        [-10.0, -10.0, 0.0],
+                        [10.0, 0.0, 0.0],
                     ],
                     fill_colour,
                     border_colour,
-                    BitSet3::B110,
+                    BitSet4::B1111,
                 );
             }
             let uniforms = UniformProjViewThickness::new(proj_matrix, view_matrix, 10.0);
@@ -243,8 +244,6 @@ impl Arena {
         if let FrustumHolder::ShouldCapture = self.frustum {
             self.frustum = FrustumHolder::Captured(frustum);
         }
-        let mut draw_params = DrawParameters::default();
-        draw_params.line_width = Some(3.0 / self.zoom_level);
         let x0 = frustum.get_x0() as i32 - 1;
         let x1 = frustum.get_x1() as i32 + 1;
         let y0 = frustum.get_y0() as i32 - 1;
@@ -262,7 +261,7 @@ impl Arena {
                 stack.push(Self::grid_vertex(x1 as f32, y as f32));
             }
         }
-        frame.draw(&shader, &self.grid_lines_vertex_buffer, NoIndices(LinesList), &uniforms, &draw_params);
+        frame.draw(&shader, &self.grid_lines_vertex_buffer, NoIndices(LinesList), &uniforms, &DrawParameters::default());
         if self.zoom_level <= 4.0 {
             let mut batch = font.render_in_batch(frame, ColourU8(18, 245, 255, 255), proj_matrix, view_matrix);
             {

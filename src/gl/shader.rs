@@ -11,9 +11,9 @@ pub struct Shader<V: Vertex, U: Uniforms> {
 }
 
 impl<V: Vertex, U: Uniforms> Shader<V, U> {
-    pub fn new(display: &Display<WindowSurface>, vs: &'static str, fs: &'static str) -> Self {
+    pub fn new(display: &Display<WindowSurface>, vs: &'static str, fs: &'static str, gs: Option<&'static str>) -> Self {
         Self {
-            program: Program::from_source(display, vs, fs, None).unwrap(),
+            program: Program::from_source(display, vs, fs, gs).unwrap(),
             _phantom: PhantomData,
             _phantom2: PhantomData,
         }
