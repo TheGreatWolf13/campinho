@@ -1,6 +1,6 @@
 ﻿use crate::colour::{ColourHex, ColourU8};
 use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
-use crate::gl::shader::{Shader, UniformProjView, UniformProjViewThickness};
+use crate::gl::shader::{Shader, ShaderManager, UniformProjView, UniformProjViewThickness};
 use crate::gl::vertex_buffer::{BitSet4, VertexBorder, VertexBuffer};
 use crate::{if_else, Frame, VertexPosColour};
 use ab_glyph::{point, Rect};
@@ -148,11 +148,11 @@ impl Arena {
         self.zoom_timer = self.zoom_timer.saturating_sub(dt);
     }
 
-    pub(super) fn render(&mut self, frame: &mut Frame, default_shader: &Shader<VertexPosColour, UniformProjView>, border_shader: &Shader<VertexBorder, UniformProjViewThickness>, font: &mut FontSystem, size: PhysicalSize<u32>) {
+    pub(super) fn render(&mut self, frame: &mut Frame, shaders: &ShaderManager, font: &mut FontSystem, size: PhysicalSize<u32>) {
         let aspect_ratio = size.width as f32 / size.height as f32;
         frame.clear_colour(ColourU8(25, 25, 25, 255));
-        self.draw_grid(frame, font, default_shader, aspect_ratio);
-        self.draw_ui(frame, font, default_shader, border_shader, aspect_ratio);
+        self.draw_grid(frame, font, shaders, aspect_ratio);
+        self.draw_ui(frame, font, shaders, border_shader, aspect_ratio);
     }
 
     fn draw_ui(&mut self, frame: &mut Frame, font: &mut FontSystem, default_shader: &Shader<VertexPosColour, UniformProjView>, border_shader: &Shader<VertexBorder, UniformProjViewThickness>, aspect_ratio: f32) {
