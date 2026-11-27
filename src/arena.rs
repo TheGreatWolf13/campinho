@@ -1,7 +1,7 @@
 ﻿use crate::colour::{ColourHex, ColourU8};
 use crate::font::{FontSystem, GlyphVertex, HorizontalAlignment, VerticalAlignment};
-use crate::gl::shader::{Shader, ShaderManager, UniformProjView, UniformProjViewThickness};
-use crate::gl::vertex_buffer::{BitSet4, VertexBorder, VertexBuffer};
+use crate::gl::shader::{ShaderManager, UniformProjView, UniformProjViewThickness};
+use crate::gl::vertex_buffer::{VertexBuffer};
 use crate::{if_else, Frame, VertexPosColour};
 use ab_glyph::{point, Rect};
 use cgmath::{ortho, Matrix4, Point3, Vector2, Vector3};
@@ -23,8 +23,8 @@ pub(super) struct Arena {
     backward: bool,
     leftward: bool,
     rightward: bool,
-    grid_lines_vertex_buffer: VertexBuffer<VertexPosColour>,
-    grid_numbers_vertex_buffer: VertexBuffer<GlyphVertex>,
+    vertex_buffer_pos_colour: VertexBuffer<VertexPosColour>,
+    vertex_buffer_glyph: VertexBuffer<GlyphVertex>,
     frustum: FrustumHolder,
     zoom_timer: Duration,
 }
@@ -85,8 +85,8 @@ impl Arena {
             backward: false,
             leftward: false,
             rightward: false,
-            grid_lines_vertex_buffer: VertexBuffer::new("Grid Lines Vertex Buffer", display, 64),
-            grid_numbers_vertex_buffer: VertexBuffer::new("Grid Number Vertex Buffer", display, 64),
+            vertex_buffer_pos_colour: VertexBuffer::new("Grid Lines Vertex Buffer", display, 64),
+            vertex_buffer_glyph: VertexBuffer::new("Grid Number Vertex Buffer", display, 64),
             frustum: FrustumHolder::None,
             zoom_timer: Duration::from_secs(0),
         }
@@ -152,10 +152,10 @@ impl Arena {
         let aspect_ratio = size.width as f32 / size.height as f32;
         frame.clear_colour(ColourU8(25, 25, 25, 255));
         self.draw_grid(frame, font, shaders, aspect_ratio);
-        self.draw_ui(frame, font, shaders, border_shader, aspect_ratio);
+        self.draw_ui(frame, font, shaders, aspect_ratio);
     }
 
-    fn draw_ui(&mut self, frame: &mut Frame, font: &mut FontSystem, default_shader: &Shader<VertexPosColour, UniformProjView>, border_shader: &Shader<VertexBorder, UniformProjViewThickness>, aspect_ratio: f32) {
+    fn draw_ui(&mut self, frame: &mut Frame, font: &mut FontSystem, shaders: &ShaderManager, aspect_ratio: f32) {
         let display = frame.display();
         let proj_matrix = ortho(
             -aspect_ratio * 50.0,
@@ -181,7 +181,7 @@ impl Arena {
             };
             let (text_width, text_height) = font.width_and_height(&zoom_level_text, 10.0, display);
             {
-                let mut writer = self.grid_lines_vertex_buffer.write(display);
+                let mut writer = self.vertex_buffer_pos_colour.write(display);
                 let mut stack = writer.stack();
                 let alpha = alpha as f32 / 255.0;
                 let colour = ColourU8(31, 31, 31, (191.0 * alpha) as u8);
@@ -195,37 +195,33 @@ impl Arena {
             let uniforms = UniformProjView::new(proj_matrix, view_matrix);
             let mut draw_parameters = DrawParameters::default();
             draw_parameters.blend = Blend::alpha_blending();
-            frame.draw(default_shader, &self.grid_lines_vertex_buffer, NoIndices(TrianglesList), &uniforms, &draw_parameters);
-            font.render_text(frame, &mut self.grid_numbers_vertex_buffer, &zoom_level_text, HorizontalAlignment::Right(50.0 * aspect_ratio - 1.0), VerticalAlignment::Bottom(-49.0), 10.0, ColourU8(0, 255, 0, alpha), proj_matrix, view_matrix);
+            frame.draw(shaders.default(), &self.vertex_buffer_pos_colour, NoIndices(TrianglesList), &uniforms, &draw_parameters);
+            font.render_text(frame, &mut self.vertex_buffer_glyph, &zoom_level_text, HorizontalAlignment::Right(50.0 * aspect_ratio - 1.0), VerticalAlignment::Bottom(-49.0), 10.0, ColourU8(0, 255, 0, alpha), proj_matrix, view_matrix);
         }
         //Draw char creator
         {
-            let mut buffer = VertexBuffer::new("Char buffer", display, 6);
             let fill_colour = ColourHex(0xFFAAAFC3);
             let border_colour = ColourHex(0xFF9398AC);
             {
-                let mut writer = buffer.write(display);
+                let mut writer = self.vertex_buffer_pos_colour.write(display);
                 let mut stack = writer.stack();
-                stack.push_bordered_quad(
+                stack.push_quad(
                     [
-                        [10.0, 10.0, 0.0],
-                        [-10.0, 0.0, 0.0],
-                        [-10.0, -10.0, 0.0],
-                        [10.0, 0.0, 0.0],
+                        VertexPosColour::new(10.0, 10.0, fill_colour),
+                        VertexPosColour::new(-10.0, 0.0, fill_colour),
+                        VertexPosColour::new(-10.0, -10.0,fill_colour),
+                        VertexPosColour::new(10.0, 0.0,fill_colour),
                     ],
-                    fill_colour,
-                    border_colour,
-                    BitSet4::B1111,
                 );
             }
-            let uniforms = UniformProjViewThickness::new(proj_matrix, view_matrix, 10.0);
+            let uniforms = UniformProjView::new(proj_matrix, view_matrix);
             let mut draw_parameters = DrawParameters::default();
             draw_parameters.blend = Blend::alpha_blending();
-            frame.draw(border_shader, &buffer, NoIndices(TrianglesList), &uniforms, &draw_parameters);
+            // frame.draw(shaders.default(), &self.vertex_buffer_pos_colour, NoIndices(TrianglesList), &uniforms, &draw_parameters);
         }
     }
 
-    fn draw_grid(&mut self, frame: &mut Frame, font: &mut FontSystem, shader: &Shader<VertexPosColour, UniformProjView>, aspect_ratio: f32) {
+    fn draw_grid(&mut self, frame: &mut Frame, font: &mut FontSystem, shaders: &ShaderManager, aspect_ratio: f32) {
         let view_range = 8.0 * self.zoom_level;
         let proj_matrix = ortho(
             -aspect_ratio * view_range,
@@ -239,7 +235,7 @@ impl Arena {
         let target = Point3::new(self.x, self.y, 0.0);
         let up = Vector3::unit_y();
         let view_matrix = Matrix4::look_at_rh(eye, target, up);
-        let uniforms = UniformProjView::new(proj_matrix, view_matrix);
+        let uniforms = UniformProjViewThickness::new(proj_matrix, view_matrix, 1.0);
         let frustum = self.frustum.unwrap_or_else(|| Frustum::new(self.x, self.y, view_range * aspect_ratio, view_range));
         if let FrustumHolder::ShouldCapture = self.frustum {
             self.frustum = FrustumHolder::Captured(frustum);
@@ -250,7 +246,7 @@ impl Arena {
         let y1 = frustum.get_y1() as i32 + 1;
         let display = frame.display();
         {
-            let mut writer = self.grid_lines_vertex_buffer.write(display);
+            let mut writer = self.vertex_buffer_pos_colour.write(display);
             let mut stack = writer.stack();
             for x in x0..=x1 {
                 stack.push(Self::grid_vertex(x as f32, y0 as f32));
@@ -261,11 +257,11 @@ impl Arena {
                 stack.push(Self::grid_vertex(x1 as f32, y as f32));
             }
         }
-        frame.draw(&shader, &self.grid_lines_vertex_buffer, NoIndices(LinesList), &uniforms, &DrawParameters::default());
+        frame.draw(shaders.line(), &self.vertex_buffer_pos_colour, NoIndices(LinesList), &uniforms, &DrawParameters::default());
         if self.zoom_level <= 4.0 {
             let mut batch = font.render_in_batch(frame, ColourU8(18, 245, 255, 255), proj_matrix, view_matrix);
             {
-                let mut writer = self.grid_numbers_vertex_buffer.write(display);
+                let mut writer = self.vertex_buffer_glyph.write(display);
                 let mut stack = writer.stack();
                 for x in x0..x1 {
                     for y in y0..y1 {
@@ -273,10 +269,10 @@ impl Arena {
                     }
                 }
             }
-            batch.end_batch(&self.grid_numbers_vertex_buffer);
+            batch.end_batch(&self.vertex_buffer_glyph);
             let mut batch = font.render_in_batch(frame, ColourU8(224, 166, 245, 255), proj_matrix, view_matrix);
             {
-                let mut writer = self.grid_numbers_vertex_buffer.write(display);
+                let mut writer = self.vertex_buffer_glyph.write(display);
                 let mut stack = writer.stack();
                 for x in (x0 + 1)..(x1 + 1) {
                     for y in y0..y1 {
@@ -284,7 +280,7 @@ impl Arena {
                     }
                 }
             }
-            batch.end_batch(&self.grid_numbers_vertex_buffer);
+            batch.end_batch(&self.vertex_buffer_glyph);
         }
     }
 

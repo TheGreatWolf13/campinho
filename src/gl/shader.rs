@@ -6,7 +6,8 @@ use glium::{uniform, Display, Program, Vertex};
 use std::marker::PhantomData;
 
 pub struct ShaderManager {
-    line_shader: Shader<VertexPosColour, UniformProjView>,
+    line_shader: Shader<VertexPosColour, UniformProjViewThickness>,
+    default_shader: Shader<VertexPosColour, UniformProjView>,
 }
 
 impl ShaderManager {
@@ -39,22 +40,23 @@ impl ShaderManager {
 
                     uniform mat4 proj;
                     uniform mat4 view;
+                    uniform float thickness;
 
                     void main() {
                         vec4 pos0 = gl_in[0].gl_Position;
                         vec4 pos1 = gl_in[1].gl_Position;
                         vec4 dir = pos1 - pos0;
                         vec4 normal = normalize(vec4(-dir.y, dir.x, 0.0, 0.0));
-                        gl_Position = proj * view * (pos0 + normal * 0.025);
+                        gl_Position = proj * view * (pos0 + normal * 0.025 * thickness);
                         g2f_colour = v2g_colour[0];
                         EmitVertex();
-                        gl_Position = proj * view * (pos0 - normal * 0.025);
+                        gl_Position = proj * view * (pos0 - normal * 0.025 * thickness);
                         g2f_colour = v2g_colour[0];
                         EmitVertex();
-                        gl_Position = proj * view * (pos1 + normal * 0.025);
+                        gl_Position = proj * view * (pos1 + normal * 0.025 * thickness);
                         g2f_colour = v2g_colour[1];
                         EmitVertex();
-                        gl_Position = proj * view * (pos1 - normal * 0.025);
+                        gl_Position = proj * view * (pos1 - normal * 0.025 * thickness);
                         g2f_colour = v2g_colour[1];
                         EmitVertex();
                         EndPrimitive();
@@ -70,8 +72,44 @@ impl ShaderManager {
                         colour = g2f_colour;
                     }
                 "#,
-            )
+            ),
+            default_shader: Shader::new(
+                display,
+                r#"
+                    #version 330
+
+                    in vec3 pos;
+                    in vec4 colour;
+
+                    out vec4 v2f_colour;
+
+                    void main() {
+                        gl_Position = vec4(pos, 1.0);
+                        v2f_colour = colour;
+                    }
+                "#,
+                None,
+                r#"
+                    #version 330
+
+                    in vec4 v2f_colour;
+
+                    out vec4 colour;
+
+                    void main() {
+                        colour = v2f_colour;
+                    }
+                "#
+            ),
         }
+    }
+
+    pub fn default(&self) -> &Shader<VertexPosColour, UniformProjView> {
+        &self.default_shader
+    }
+
+    pub fn line(&self) -> &Shader<VertexPosColour, UniformProjViewThickness> {
+        &self.line_shader
     }
 }
 

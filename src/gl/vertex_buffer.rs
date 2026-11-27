@@ -6,6 +6,7 @@ use glium::vertex::{VertexBuffer as VB, VertexBufferSlice};
 use glium::{implement_vertex, Display, Vertex};
 use log::info;
 use seq_macro::seq;
+use typedmap::TypedMapKey;
 
 const BARYCENTER_BASIS: [[f32; 2]; 3] = [
     [0.0, 0.0],

@@ -27,7 +27,6 @@ struct Campinho {
     window: Window,
     arena: Arena,
     shader_manager: ShaderManager,
-    border_shader: Shader<VertexBorder, UniformProjViewThickness>,
     display: Display<WindowSurface>,
     fps: usize,
     last_fps_time: Instant,
@@ -101,62 +100,10 @@ impl ApplicationHandler for Campinho {
 
 impl Campinho {
     fn new(window: Window, display: Display<WindowSurface>) -> Self {
-        let vs = r#"
-            #version 330
-
-            in vec3 pos;
-            in vec4 fill_colour;
-            in vec4 border_colour;
-            in vec2 barycenter_basis;
-            in vec3 borders;
-
-            out vec4 v_fill_colour;
-            out vec4 v_border_colour;
-            out vec2 v_barycenter_basis;
-            flat out vec3 v_borders;
-
-            uniform mat4 proj;
-            uniform mat4 view;
-
-            void main() {
-                gl_Position = proj * view * vec4(pos, 1.0);
-                v_fill_colour = fill_colour;
-                v_border_colour = border_colour;
-                v_barycenter_basis = barycenter_basis;
-                v_borders = borders;
-            }
-        "#;
-        let fs = r#"
-            #version 330
-
-            in vec4 v_fill_colour;
-            in vec4 v_border_colour;
-            in vec2 v_barycenter_basis;
-            flat in vec3 v_borders;
-
-            out vec4 colour;
-
-            uniform float thickness;
-
-            void main() {
-                vec3 bary = vec3(1.0 - v_barycenter_basis.x - v_barycenter_basis.y, v_barycenter_basis.x, v_barycenter_basis.y);
-                vec3 d = fwidth(bary);
-                vec3 a = smoothstep(
-                    d * (thickness - 1.0 * 0.5),
-                    d * (thickness + 1.0 * 0.5),
-                    bary
-                );
-                a += v_borders;
-                float border = min(a.x, min(a.y, a.z));
-                colour = mix(v_border_colour, v_fill_colour, border);
-            }
-        "#;
-        let border_shader = Shader::new(&display, vs, None, fs);
         Self {
             shader_manager: ShaderManager::new(&display),
             arena: Arena::new(&display),
             font_system: FontSystem::new(&display),
-            border_shader,
             window,
             fps: 0,
             last_fps_time: Instant::now(),

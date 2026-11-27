@@ -1,15 +1,18 @@
 ﻿use crate::colour::Colour;
 use crate::gl::shader::Shader;
 use crate::gl::vertex_buffer::VertexBuffer;
+use crate::gl::vertex_buffer::VertexPos;
 use glium::glutin::surface::WindowSurface;
 use glium::index::IndicesSource;
 use glium::uniforms::Uniforms;
 use glium::{Display, DrawParameters, Surface, Vertex};
+use crate::{seq_literal};
 
 ///<h1>Frame</h1>
 pub struct Frame<'display> {
     display: &'display Display<WindowSurface>,
     frame: Option<glium::Frame>,
+    buffer_holder: BufferHolder,
     draw_calls: u32,
 }
 
@@ -18,6 +21,7 @@ impl<'display> Frame<'display> {
         Self {
             display,
             frame: Some(display.draw()),
+            buffer_holder: BufferHolder::new(display),
             draw_calls: 0,
         }
     }
@@ -45,3 +49,21 @@ impl<'display> Drop for Frame<'display> {
         self.frame.take().unwrap().finish().unwrap();
     }
 }
+
+seq_literal!(N in ("VertexPos") {
+    struct BufferHolder {
+        #(
+            [<N:snake>]: VertexBuffer<[<N>]>,
+        )*
+    }
+
+    impl BufferHolder {
+        fn new(display: &Display<WindowSurface>) -> Self {
+            Self {
+                #(
+                    [<N:snake>]: VertexBuffer::new(stringify!([<N>]), display, 16),
+                )*
+            }
+        }
+    }
+});
