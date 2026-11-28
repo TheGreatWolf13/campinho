@@ -8,9 +8,9 @@ mod util;
 use crate::arena::Arena;
 use crate::colour::ColourWheelManager;
 use crate::font::FontSystem;
-use crate::gl::frame::Frame;
-use crate::gl::shader::{Shader, ShaderManager, UniformProjViewThickness};
-use crate::gl::vertex_buffer::{VertexBorder, VertexPosColour};
+use crate::gl::frame::{Frame, FrameEngine};
+use crate::gl::shader::ShaderManager;
+use crate::gl::vertex_buffer::VertexPosColour;
 use cgmath::{EuclideanSpace, Point2};
 use glium::backend::glutin::SimpleWindowBuilder;
 use glium::glutin::surface::WindowSurface;
@@ -27,7 +27,6 @@ struct Campinho {
     window: Window,
     arena: Arena,
     shader_manager: ShaderManager,
-    display: Display<WindowSurface>,
     fps: usize,
     last_fps_time: Instant,
     last_frame_time: Instant,
@@ -36,6 +35,7 @@ struct Campinho {
     draw_calls: u32,
     middle_button_held: bool,
     last_cursor_pos: Point2<f32>,
+    frame_engine: FrameEngine,
     colour_wheel_manager: ColourWheelManager,
 }
 
@@ -102,7 +102,7 @@ impl Campinho {
     fn new(window: Window, display: Display<WindowSurface>) -> Self {
         Self {
             shader_manager: ShaderManager::new(&display),
-            arena: Arena::new(&display),
+            arena: Arena::new(),
             font_system: FontSystem::new(&display),
             window,
             fps: 0,
@@ -113,7 +113,7 @@ impl Campinho {
             middle_button_held: false,
             last_cursor_pos: Point2::origin(),
             colour_wheel_manager: ColourWheelManager::new(&display),
-            display,
+            frame_engine: FrameEngine::new(display),
         }
     }
 
@@ -147,7 +147,7 @@ impl Campinho {
             self.accumulated_frame_time = Duration::ZERO;
             self.draw_calls = 0;
         }
-        let mut frame = Frame::new(&self.display);
+        let mut frame = self.frame_engine.start_frame();
         let size = self.window.inner_size();
         self.arena.render(&mut frame, &self.shader_manager, &mut self.font_system, size);
         self.draw_calls += frame.draw_calls();

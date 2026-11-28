@@ -2,7 +2,7 @@
 use crate::colour::Colour;
 use crate::font::BakedGlyph::{Empty, Glyph};
 use crate::gl::shader::Shader;
-use crate::gl::vertex_buffer::{VertexBuffer, WritableVertexBufferStack};
+use crate::gl::vertex_buffer::WritableVertexBufferStack;
 use crate::{impl_uniforms, Frame};
 use ab_glyph::{point, Font, FontVec, GlyphId, PxScale, PxScaleFont, Rect, ScaleFont};
 use glium::glutin::surface::WindowSurface;
@@ -58,18 +58,18 @@ impl FontSystem {
         }
     }
 
-    pub fn render_text(&mut self, frame: &mut Frame, buffer: &mut VertexBuffer<GlyphVertex>, text: &str, hor_align: HorizontalAlignment, ver_align: VerticalAlignment, scale: f32, colour: impl Colour, proj: impl Into<[[f32; 4]; 4]>, view: impl Into<[[f32; 4]; 4]>) {
+    pub fn render_text(&mut self, frame: &mut Frame, text: &str, hor_align: HorizontalAlignment, ver_align: VerticalAlignment, scale: f32, colour: impl Colour, proj: impl Into<[[f32; 4]; 4]>, view: impl Into<[[f32; 4]; 4]>) {
         let display = frame.display();
-        let mut batch = self.render_in_batch(frame, colour, proj, view);
+        let mut batch = self.render_in_batch(colour, proj, view);
         {
-            let mut writer = buffer.write(display);
+            let mut writer = frame.glyph_vertex_buffer();
             let mut stack = writer.stack();
             batch.render_text(text, hor_align, ver_align, scale, &mut stack, display);
         }
-        batch.end_batch(&buffer);
+        batch.end_batch(frame);
     }
 
-    pub fn render_in_batch<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>>(&'font_system mut self, frame: &'frame mut Frame<'display>, colour: C, proj: P, view: V) -> FontRenderBatch<'font_system, 'frame, 'display, C, P, V> {
+    pub fn render_in_batch<C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>>(&'_ mut self, colour: C, proj: P, view: V) -> FontRenderBatch<'_, C, P, V> {
         FontRenderBatch {
             renderer: &mut self.renderer,
             glyphs: &mut self.glyphs,
@@ -77,7 +77,6 @@ impl FontSystem {
             proj,
             view,
             colour,
-            frame,
         }
     }
 
@@ -230,28 +229,26 @@ impl GlyphVertex {
 
 implement_vertex!(GlyphVertex, pos, uv, layer);
 
-pub struct FontRenderBatch<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>> {
+pub struct FontRenderBatch<'font_system, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>> {
     renderer: &'font_system mut FontRenderer,
     glyphs: &'font_system mut Vec<Option<BakedGlyph>>,
     atlas: &'font_system mut TextureAtlas,
     proj: P,
     view: V,
     colour: C,
-    frame: &'frame mut Frame<'display>,
 }
 
-impl<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>> FontRenderBatch<'font_system, 'frame, 'display, C, P, V> {
+impl<'font_system, 'frame, 'display, C: Colour, P: Into<[[f32; 4]; 4]>, V: Into<[[f32; 4]; 4]>> FontRenderBatch<'font_system, C, P, V> {
     pub fn render_text(&mut self, text: &str, hor_align: HorizontalAlignment, ver_align: VerticalAlignment, scale: f32, stack: &mut WritableVertexBufferStack<GlyphVertex>, display: &Display<WindowSurface>) {
         self.renderer.render_text(text, hor_align, ver_align, scale, stack, &mut self.glyphs, &mut self.atlas, display);
     }
 
-    pub fn end_batch(self, buffer: &VertexBuffer<GlyphVertex>) {
+    pub fn end_batch(self, frame: &mut Frame) {
         let mut draw_params = DrawParameters::default();
         draw_params.blend = Blend::alpha_blending();
         let uniforms = GlyphUniform::new(self.proj, self.view, self.colour, self.atlas.sampler());
-        self.frame.draw(
+        frame.draw(
             &self.renderer.glyph_shader,
-            buffer,
             NoIndices(PrimitiveType::TrianglesList),
             &uniforms,
             &draw_params,

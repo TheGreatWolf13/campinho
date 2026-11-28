@@ -1,6 +1,4 @@
-﻿use super_seq_macro::seq;
-
-#[macro_export]
+﻿#[macro_export]
 macro_rules! if_else {
     ($condition:expr => $if_true:expr ; $if_false:expr) => {
         if $condition {

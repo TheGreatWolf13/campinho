@@ -1,12 +1,11 @@
-﻿use std::mem;
-use crate::colour::Colour;
+﻿use crate::colour::Colour;
 use glium::buffer::WriteMapping;
 use glium::glutin::surface::WindowSurface;
 use glium::vertex::{VertexBuffer as VB, VertexBufferSlice};
 use glium::{implement_vertex, Display, Vertex};
-use log::info;
+use log::debug;
 use seq_macro::seq;
-use typedmap::TypedMapKey;
+use std::mem;
 
 const BARYCENTER_BASIS: [[f32; 2]; 3] = [
     [0.0, 0.0],
@@ -127,9 +126,9 @@ pub struct VertexBuffer<T: Vertex> {
     overflow: Vec<T>,
 }
 
-pub struct WritableVertexBuffer<'a, 'b, T: Vertex> {
-    inner: &'a mut VertexBuffer<T>,
-    display: &'b Display<WindowSurface>,
+pub struct WritableVertexBuffer<'buffer, 'display, T: Vertex> {
+    inner: &'buffer mut VertexBuffer<T>,
+    display: &'display Display<WindowSurface>,
 }
 
 pub struct WritableVertexBufferStack<'a, T: Vertex> {
@@ -152,11 +151,15 @@ impl<T: Vertex> VertexBuffer<T> {
         self.inner.slice(..self.used).unwrap()
     }
 
-    pub fn write<'a, 'b>(&'a mut self, display: &'b Display<WindowSurface>) -> WritableVertexBuffer<'a, 'b, T> {
+    pub fn write<'buffer, 'display>(&'buffer mut self, display: &'display Display<WindowSurface>) -> WritableVertexBuffer<'buffer, 'display, T> {
         WritableVertexBuffer {
             inner: self,
             display,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
     }
 }
 
@@ -174,7 +177,7 @@ impl<'a, 'b, T: Vertex> WritableVertexBuffer<'a, 'b, T> {
 impl<'a, 'b, T: Vertex> Drop for WritableVertexBuffer<'a, 'b, T> {
     fn drop(&mut self) {
         if !self.inner.overflow.is_empty() {
-            info!("Reallocating {}: buffer from {} to {} vertices", self.inner.name, self.inner.inner.len(), self.inner.used.max(self.inner.inner.len() * 2));
+            debug!("Reallocating {}: buffer from {} to {} vertices", self.inner.name, self.inner.inner.len(), self.inner.used.max(self.inner.inner.len() * 2));
             //Needs reallocation
             let mut new_buffer = VB::empty_dynamic(self.display, self.inner.used.max(self.inner.inner.len() * 2)).unwrap();
             self.inner.inner.copy_to(&new_buffer).unwrap();

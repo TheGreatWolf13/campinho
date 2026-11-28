@@ -1,6 +1,6 @@
 ﻿use crate::gl::frame::Frame;
 use crate::gl::shader::{Shader, Uniform};
-use crate::gl::vertex_buffer::{VertexBuffer, VertexPos};
+use crate::gl::vertex_buffer::VertexPos;
 use crate::impl_uniforms;
 use cgmath::{ortho, Matrix4, Point3, Vector3};
 use glium::glutin::surface::WindowSurface;
@@ -121,10 +121,8 @@ impl ColourWheelManager {
     }
 
     pub fn draw(&self, frame: &mut Frame, size: PhysicalSize<u32>) {
-        let display = frame.display();
-        let mut buffer = VertexBuffer::new("Color Wheel", display, 6);
         {
-            let mut writer = buffer.write(display);
+            let mut writer = frame.vertex_pos_buffer();
             let mut stack = writer.stack();
             stack.push_quad([
                 VertexPos::new(-25.0, 25.0),
@@ -147,7 +145,7 @@ impl ColourWheelManager {
         let up = Vector3::unit_y();
         let view_matrix = Matrix4::look_at_rh(eye, target, up);
         let uniforms = ColourWheelUniform::new(proj_matrix, view_matrix, [0.0, 0.0], 25.0, 1.0);
-        frame.draw(&self.shader, &buffer, NoIndices(TrianglesList), &uniforms, &DrawParameters::default());
+        frame.draw(&self.shader, NoIndices(TrianglesList), &uniforms, &DrawParameters::default());
     }
 }
 

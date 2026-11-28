@@ -403,7 +403,6 @@ dependencies = [
  "paste",
  "seq-macro",
  "super-seq-macro",
- "typedmap",
 ]
 
 [[package]]
@@ -2689,12 +2688,6 @@ name = "ttf-parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
-
-[[package]]
-name = "typedmap"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63278e72ed4f207eb3216c944cbafb35bdb656d2eab97ef73c0c165a1cd3e319"
 
 [[package]]
 name = "unicode-ident"

@@ -30,15 +30,15 @@ impl TextureAtlas {
     pub fn store_texture(&mut self, display: &Display<WindowSurface>, pixels: &[u8], width: u32, height: u32) -> Option<u32> {
         if self.used >= self.capacity {
             debug!("Resized atlas capacity from {} to {}", self.capacity, self.capacity * 2);
-            self._recreate(display, self.width, self.height, self.capacity * 2);
+            self.recreate(display, self.width, self.height, self.capacity * 2);
         }
         while self.width < width {
             debug!("Resized atlas width from {} to {}", self.width, self.width * 2);
-            self._recreate(display, self.width * 2, self.height, self.capacity);
+            self.recreate(display, self.width * 2, self.height, self.capacity);
         }
         while self.height < height {
             debug!("Resized atlas height from {} to {}", self.height, self.height * 2);
-            self._recreate(display, self.width, self.height * 2, self.capacity);
+            self.recreate(display, self.width, self.height * 2, self.capacity);
         }
         let pixel_buffer = PixelBuffer::new_empty(display, pixels.len());
         pixel_buffer.write(&pixels);
@@ -64,7 +64,7 @@ impl TextureAtlas {
         self.height
     }
 
-    fn _recreate(&mut self, display: &Display<WindowSurface>, new_width: u32, new_height: u32, new_capacity: u32) {
+    fn recreate(&mut self, display: &Display<WindowSurface>, new_width: u32, new_height: u32, new_capacity: u32) {
         let new_array = Texture2dArray::empty_with_format(display, self.format, MipmapsOption::EmptyMipmaps, new_width, new_height, new_capacity).unwrap();
         let target = display.draw();
         for layer in 0..self.used {
