@@ -24,7 +24,7 @@ impl FrameEngine {
         }
     }
 
-    pub fn start_frame(&'_ mut self) -> Frame<'_> {
+    pub fn start_frame(&'_ mut self) -> Frame<'_, '_> {
         Frame {
             display: &self.display,
             frame: ManuallyDrop::new(self.display.draw()),
@@ -34,14 +34,14 @@ impl FrameEngine {
     }
 }
 
-pub struct Frame<'engine> {
-    display: &'engine Display<WindowSurface>,
+pub struct Frame<'display, 'buffer> {
+    display: &'display Display<WindowSurface>,
     frame: ManuallyDrop<glium::Frame>,
-    buffer_holder: &'engine mut BufferHolder,
+    buffer_holder: &'buffer mut BufferHolder,
     draw_calls: u32,
 }
 
-impl<'engine> Frame<'engine> {
+impl<'display, 'buffer> Frame<'display, 'buffer> {
     pub fn clear_colour(&mut self, colour: impl Colour) {
         self.frame.clear_color_srgb(colour.r(), colour.g(), colour.b(), colour.a());
     }
@@ -55,7 +55,7 @@ impl<'engine> Frame<'engine> {
         self.draw_calls += 1;
     }
 
-    pub fn display(&self) -> &'engine Display<WindowSurface> {
+    pub fn display(&self) -> &'display Display<WindowSurface> {
         &self.display
     }
 
@@ -64,7 +64,7 @@ impl<'engine> Frame<'engine> {
     }
 }
 
-impl<'engine> Drop for Frame<'engine> {
+impl<'display, 'buffer> Drop for Frame<'display, 'buffer> {
     fn drop(&mut self) {
         //SAFETY: this ManuallyDrop will not be used again, as the value is dropped
         unsafe {
@@ -102,9 +102,9 @@ seq_literal!(N in ("VertexPos", "VertexPosColour", "GlyphVertex") {
         }
     )*
 
-    impl <'engine> Frame<'engine> {
+    impl <'display, 'buffer> Frame<'display, 'buffer> {
         #(
-            pub fn [<N:snake _buffer>]<'frame>(&'frame mut self) -> WritableVertexBuffer<'frame, 'frame, [<N>]> {
+            pub fn [<N:snake _buffer>](&'_ mut self) -> WritableVertexBuffer<'_, 'display, [<N>]> {
                 self.buffer_holder.[<N:snake>].write(&self.display)
             }
         )*
